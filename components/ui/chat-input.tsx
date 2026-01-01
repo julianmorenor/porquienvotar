@@ -88,7 +88,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage }) => {
                                 className={`
                                     inline-flex items-center justify-center relative transition-all duration-200 h-9 w-9 md:h-10 md:w-10 rounded-full
                                     ${hasContent
-                                        ? 'bg-accent text-bg-0 hover:scale-105 active:scale-95 shadow-md'
+                                        ? 'bg-gradient-to-br from-[#FF3B30] via-[#FF9500] via-[#28CD41] to-[#007AFF] text-white hover:scale-105 active:scale-95 shadow-md'
                                         : 'bg-bg-200/50 text-text-300/50 cursor-default'}
                                 `}
                                 type="button"

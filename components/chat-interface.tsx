@@ -132,12 +132,9 @@ export default function ChatInterface() {
             {/* Logo / Header - Sticky Top */}
             <div className={`fixed top-0 left-0 w-full p-4 z-[50] transition-all duration-500 ${hasStarted ? 'bg-bg-0/80 backdrop-blur border-b border-bg-200' : ''}`}>
                 <div className="max-w-7xl mx-auto flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 bg-gradient-to-br from-indigo-400 via-orange-400 to-teal-400 rounded-lg flex items-center justify-center text-white font-serif font-bold text-lg shadow-sm">
-                            PV
-                        </div>
-                        <span className="font-semibold tracking-tight text-lg opacity-100 text-text-100">
-                            porquienvotar.co
+                    <div className="flex items-center">
+                        <span className="font-semibold tracking-tight text-2xl text-text-100">
+                            porquien<span className="bg-gradient-to-r from-[#FF3B30] via-[#FF9500] via-[#28CD41] to-[#007AFF] bg-clip-text text-transparent">votar</span>.co
                         </span>
                     </div>
                 </div>
@@ -165,7 +162,7 @@ export default function ChatInterface() {
                                     Hola, elector
                                 </h2>
                                 <h1 className="text-3xl md:text-5xl font-serif font-medium text-text-100 tracking-tight leading-[1.15] text-balance">
-                                    Descubre tu candidato ideal.
+                                    Descubre tu candidato <span className="bg-gradient-to-r from-[#FF3B30] via-[#FF9500] via-[#28CD41] to-[#007AFF] bg-clip-text text-transparent">ideal</span>.
                                 </h1>
                             </motion.div>
 
@@ -182,11 +179,14 @@ export default function ChatInterface() {
                                         className={clsx(
                                             "flex items-center justify-center px-4 py-2 text-[15px] font-medium rounded-xl transition-all duration-300",
                                             "border border-bg-300/40 backdrop-blur-md shadow-sm",
-                                            "bg-bg-100/40 hover:bg-bg-100/80 hover:border-accent/30 hover:shadow-md hover:scale-[1.02]",
+                                            "bg-bg-100/40 hover:bg-bg-100/80 hover:shadow-md hover:scale-[1.02] hover:border-transparent relative group overflow-hidden",
                                             "active:scale-95 text-text-200"
                                         )}
                                     >
-                                        <span>{t.name}</span>
+                                        <div className="absolute inset-0 bg-gradient-to-r from-[#FF3B30] via-[#FF9500] via-[#28CD41] to-[#007AFF] opacity-0 group-hover:opacity-10 transition-opacity pointer-events-none" />
+                                        <span className="relative z-10 group-hover:bg-gradient-to-r group-hover:from-[#FF3B30] group-hover:via-[#FF9500] group-hover:via-[#28CD41] group-hover:to-[#007AFF] group-hover:bg-clip-text group-hover:text-transparent transition-all">
+                                            {t.name}
+                                        </span>
                                     </button>
                                 ))}
                             </div>
@@ -223,9 +223,8 @@ export default function ChatInterface() {
                                     >
                                         {msg.role === 'assistant' && (
                                             <div className="flex items-center gap-2 mb-2 opacity-100">
-                                                <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-indigo-400 via-orange-400 to-teal-400 flex items-center justify-center relative overflow-hidden shrink-0">
-                                                    <span className="font-serif font-bold text-[10px] text-white z-10">PV</span>
-                                                    <Sparkles size={8} className="text-white/60 absolute top-0.5 right-0.5" />
+                                                <div className="w-6 h-6 rounded-lg bg-bg-0 border border-bg-300 flex items-center justify-center relative overflow-hidden shrink-0">
+                                                    <span className="font-serif font-bold text-[10px] text-black z-10">PV</span>
                                                 </div>
                                             </div>
                                         )}
@@ -236,8 +235,8 @@ export default function ChatInterface() {
                             {isLoading && (
                                 <div className="flex justify-start w-full pl-0 pt-2">
                                     <div className="flex items-center gap-2 text-text-300">
-                                        <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-indigo-400 via-orange-400 to-teal-400 flex items-center justify-center animate-pulse shrink-0">
-                                            <span className="font-serif font-bold text-[10px] text-white">PV</span>
+                                        <div className="w-6 h-6 rounded-lg bg-bg-0 border border-bg-300 flex items-center justify-center animate-pulse shrink-0">
+                                            <span className="font-serif font-bold text-[10px] text-black">PV</span>
                                         </div>
                                         <span className="text-sm">Escribiendo...</span>
                                     </div>
