@@ -1,10 +1,24 @@
 import OpenAI from 'openai';
 import { LLMResponse } from './types';
 
+// --- CONFIGURACIÓN DE PROVEEDOR ---
+// const PROVIDER: 'openai' | 'google' = 'google'; 
+const PROVIDER: 'openai' | 'google' = 'openai';
+
+const openai = new OpenAI(PROVIDER === 'openai' ? {
+    apiKey: process.env.OPENAI_API_KEY || 'mock-key',
+} : {
+    apiKey: process.env.GOOGLE_API_KEY || 'mock-key',
+    baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai/',
+});
+
+/* 
+// Configuración anterior (Auto-switch)
 const openai = new OpenAI({
     apiKey: process.env.GOOGLE_API_KEY || process.env.OPENAI_API_KEY || 'mock-key',
     baseURL: process.env.GOOGLE_API_KEY ? 'https://generativelanguage.googleapis.com/v1beta/openai/' : undefined,
 });
+*/
 
 const SYSTEM_PROMPT = `
 Eres "porquienvotar.co", un asistente de orientación política neutral para Colombia (Contexto Elecciones 2026).
@@ -88,7 +102,8 @@ export async function chatWithLLM(history: any[]): Promise<LLMResponse> {
 
     try {
         const completion = await openai.chat.completions.create({
-            model: process.env.GOOGLE_API_KEY ? "gemini-2.5-flash" : "gpt-3.5-turbo", // Use cheaper models for MVP
+            // model: PROVIDER === 'google' ? "gemini-2.5-flash" : "gpt-3.5-turbo",
+            model: PROVIDER === 'openai' ? "gpt-5-nano-2025-08-07" : "gemini-2.5-flash",
             messages: [
                 { role: "system", content: SYSTEM_PROMPT },
                 ...history
