@@ -58,7 +58,7 @@ export default function ResultsView({ candidates }: ResultsViewProps) {
                         onChange={(e) => setLeadGenChecked(e.target.checked)}
                     />
                     <span className="text-sm text-slate-600">
-                        Me gustaría recibir información verificada sobre estos candidatos via WhatsApp.
+                        Me gustaría recibir información verificada sobre estos candidatos via WhatsApp o. email.
                         <span className="block text-slate-400 text-xs mt-1">(Opcional. Respetamos tu privacidad)</span>
                     </span>
                 </label>
