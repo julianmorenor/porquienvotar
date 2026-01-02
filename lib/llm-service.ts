@@ -6,11 +6,13 @@ import { LLMResponse } from './types';
 const PROVIDER: 'openai' | 'google' = 'openai';
 
 const openai = new OpenAI(PROVIDER === 'openai' ? {
-    apiKey: process.env.OPENAI_API_KEY || 'mock-key',
+    apiKey: process.env.OPENAI_API_KEY,
 } : {
-    apiKey: process.env.GOOGLE_API_KEY || 'mock-key',
+    apiKey: process.env.GOOGLE_API_KEY,
     baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai/',
 });
+
+console.log(`[LLM Service] Initialized with PROVIDER: ${PROVIDER}`);
 
 /* 
 // Configuración anterior (Auto-switch)
@@ -101,15 +103,16 @@ export async function chatWithLLM(history: any[]): Promise<LLMResponse> {
     }
 
     try {
+        const currentModel = PROVIDER === 'openai' ? "gpt-5-nano-2025-08-07" : "gemini-2.5-flash";
+        console.log(`[LLM Service] Calling ${PROVIDER} with model: ${currentModel}`);
+
         const completion = await openai.chat.completions.create({
-            // model: PROVIDER === 'google' ? "gemini-2.5-flash" : "gpt-3.5-turbo",
-            model: PROVIDER === 'openai' ? "gpt-5-nano-2025-08-07" : "gemini-2.5-flash",
+            model: currentModel,
             messages: [
                 { role: "system", content: SYSTEM_PROMPT },
                 ...history
             ],
-            response_format: { type: "json_object" },
-            temperature: 0.7,
+            // Note: gpt-5-nano-2025-08-07 has strict parameter requirements
         });
 
         const content = completion.choices[0].message.content;
