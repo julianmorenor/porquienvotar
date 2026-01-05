@@ -17,7 +17,8 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        const { history } = await req.json();
+        const body = await req.json();
+        const history = body.messages || body.history;
         console.log("[API] History size:", history?.length);
 
         // Call streaming service

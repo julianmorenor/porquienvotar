@@ -6,7 +6,21 @@ import ResultsView from './results-view';
 import ChatInput from '@/components/ui/chat-input';
 import InfiniteGrid from '@/components/ui/infinite-grid-integration';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sun, Moon, Sparkles } from 'lucide-react';
+import {
+    Sun,
+    Moon,
+    Shield,
+    TrendingUp,
+    Stethoscope,
+    GraduationCap,
+    Leaf,
+    Scale,
+    Heart,
+    Sprout,
+    Bus,
+    ArrowRight,
+    Bird
+} from 'lucide-react';
 import clsx from 'clsx';
 
 interface Message {
@@ -16,46 +30,19 @@ interface Message {
 
 export default function ChatInterface() {
     // State
-    const [messages, setMessages] = useState<Message[]>([
-        { role: 'assistant', content: '¿Tu futuro está en juego? Descubre tu candidato ideal antes de que sea tarde. ¿Qué tema define tu voto hoy?' }
-    ]);
+    const [mounted, setMounted] = useState(false);
+    const [messages, setMessages] = useState<Message[]>([]);
     const [isLoading, setIsLoading] = useState(false);
-    // --- UI DEBUG ONLY (Commented for testing) ---
-    /*
-    const MOCK_CANDIDATES: Candidate[] = [
-        {
-            id: "1",
-            name: "Candidato de Prueba A",
-            affinity: 85,
-            party: "Partido del Futuro",
-            summary: "Propone una reforma integral a la salud y fortalecer la educación técnica en regiones apartadas.",
-            imageUrl: "https://api.dicebear.com/7.x/avataaars/svg?seed=A"
-        },
-        {
-            id: "2",
-            name: "Candidata de Prueba B",
-            affinity: 72,
-            party: "Unión por el Cambio",
-            summary: "Su enfoque principal es la seguridad urbana y la reducción de impuestos para pequeñas empresas.",
-            imageUrl: "https://api.dicebear.com/7.x/avataaars/svg?seed=B"
-        },
-        {
-            id: "3",
-            name: "Candidato de Prueba C",
-            affinity: 45,
-            party: "Movimiento Verde",
-            summary: "Enfocado en la transición energética y la protección de páramos y recursos hídricos.",
-            imageUrl: "https://api.dicebear.com/7.x/avataaars/svg?seed=C"
-        }
-    ];
-    */
-    // ----------------------------------------------
+    const [selectedTopics, setSelectedTopics] = useState<string[]>([]);
+    const [isDark, setIsDark] = useState(false);
+    const [candidates, setCandidates] = useState<Candidate[] | null>(null);
 
-    const [candidates, setCandidates] = useState<Candidate[] | null>(null); // Reverted to null for real testing
-    const [isDark, setIsDark] = useState(false); // Default to light
-
-    // Refs
     const messagesEndRef = useRef<HTMLDivElement>(null);
+
+    // Hydration Fix
+    useEffect(() => {
+        setMounted(true);
+    }, []);
 
     // Dark Mode Toggle Effect
     useEffect(() => {
@@ -67,17 +54,10 @@ export default function ChatInterface() {
     }, [isDark]);
 
     // Scroll to bottom
-    const scrollToBottom = () => {
-        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    };
-
     useEffect(() => {
-        if (messages.length > 1) {
-            scrollToBottom();
-        }
-    }, [messages, isLoading]);
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, [messages]);
 
-    // Handle Send Message
     const handleSendMessage = async (data: {
         message: string;
         files: any[];
@@ -91,20 +71,16 @@ export default function ChatInterface() {
         const userMsg: Message = { role: 'user', content: inputContent };
         const assistantMsg: Message = { role: 'assistant', content: '' };
 
-        // Capture current history BEFORE updating state to avoid stale closure issues
         const currentHistory = [...messages];
-
         setMessages(prev => [...prev, userMsg, assistantMsg]);
         setIsLoading(true);
 
         try {
             const history = [...currentHistory, userMsg];
-            console.log("[Chat] Sending history:", history);
-
             const res = await fetch('/api/chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ history })
+                body: JSON.stringify({ messages: history })
             });
 
             if (!res.ok) {
@@ -124,20 +100,13 @@ export default function ChatInterface() {
                     const chunk = decoder.decode(value, { stream: true });
                     accumulatedContent += chunk;
 
-                    // Debug: monitor what's coming in
-                    // console.log("[Chat] Stream chunk:", chunk);
-
-                    // Manual extraction of 'message' content
-                    // We look for the "message" value. Partial JSON regex needs to be careful.
                     try {
-                        // This regex looks for the content of the "message" field specifically.
-                        // It handles escaped quotes inside the message.
                         const messageMatch = accumulatedContent.match(/"message"\s*:\s*"((?:[^"\\]|\\.)*)"?/);
                         if (messageMatch && messageMatch[1]) {
                             const cleanText = messageMatch[1]
                                 .replace(/\\n/g, '\n')
                                 .replace(/\\"/g, '"')
-                                .replace(/\\/g, ''); // Basic cleaning of remaining escapes
+                                .replace(/\\/g, '');
 
                             setMessages(prev => {
                                 const newMessages = [...prev];
@@ -148,22 +117,14 @@ export default function ChatInterface() {
                                 return newMessages;
                             });
                         }
-                    } catch (e) {
-                        // Partial parsing errors are expected
-                    }
+                    } catch (e) { }
                 }
             }
 
-            // Final parse for candidates and flags
             try {
-                // The AI SDK sends the JSON result at the end of the stream as well
-                // or the accumulated chunks form a complete JSON object.
                 const finalJson = JSON.parse(accumulatedContent);
-                console.log("[Chat] Final JSON received:", finalJson);
-
                 if (finalJson.client_response) {
                     const { message, suggested_candidates, is_final_answer } = finalJson.client_response;
-
                     if (message) {
                         setMessages(prev => {
                             const newMessages = [...prev];
@@ -172,14 +133,11 @@ export default function ChatInterface() {
                             return newMessages;
                         });
                     }
-
                     if (is_final_answer && suggested_candidates) {
                         setCandidates(suggested_candidates);
                     }
                 }
-            } catch (e) {
-                console.warn("[Chat] Could not parse final JSON:", accumulatedContent);
-            }
+            } catch (e) { }
 
         } catch (error: any) {
             console.error("[Chat] Error:", error);
@@ -189,23 +147,45 @@ export default function ChatInterface() {
         }
     };
 
+    const topics = [
+        { name: 'Seguridad', icon: Shield },
+        { name: 'Economía', icon: TrendingUp },
+        { name: 'Salud', icon: Stethoscope },
+        { name: 'Educación', icon: GraduationCap },
+        { name: 'Ambiente', icon: Leaf },
+        { name: 'Justicia', icon: Scale },
+        { name: 'Derechos Sociales', icon: Heart },
+        { name: 'Agro', icon: Sprout },
+        { name: 'Movilidad', icon: Bus },
+        { name: 'Paz', icon: Bird }
+    ];
 
+    const toggleTopic = (topicName: string) => {
+        setSelectedTopics(prev => {
+            if (prev.includes(topicName)) {
+                return prev.filter(t => t !== topicName);
+            }
+            if (prev.length < 3) {
+                return [...prev, topicName];
+            }
+            return prev;
+        });
+    };
 
-    // Determine View State
-    const hasStarted = messages.length > 1;
+    const handleStartChat = () => {
+        if (selectedTopics.length === 3) {
+            const contextMessage = `Mis 3 prioridades para Colombia son: ${selectedTopics.join(', ')}. ¿Cómo se alinean los candidatos con estas preocupaciones?`;
+            handleSendMessage({ message: contextMessage, files: [], pastedContent: [], model: 'default' });
+        }
+    };
+
+    const hasStarted = messages.length > 0;
+
+    if (!mounted) return <div className="h-[100dvh] bg-bg-0" />;
 
     if (candidates) {
-        return <ResultsView candidates={candidates} />;
+        return <ResultsView candidates={candidates} selectedTopics={selectedTopics} />;
     }
-
-    const topics = [
-        { name: 'Seguridad' },
-        { name: 'Economía' },
-        { name: 'Salud' },
-        { name: 'Corrupción' },
-        { name: 'Democracia' },
-        { name: 'Paz' }
-    ];
 
     return (
         <div className="relative w-full h-[100dvh] bg-bg-0 text-text-100 font-sans transition-colors duration-300 overflow-hidden flex flex-col">
@@ -214,145 +194,204 @@ export default function ChatInterface() {
                 <InfiniteGrid />
             </div>
 
-            {/* Dark Mode Toggle - Sticky top right */}
-            <button
-                onClick={() => setIsDark(!isDark)}
-                className="fixed top-4 right-4 z-[60] p-2.5 rounded-full bg-bg-100/80 backdrop-blur-md border border-bg-300 shadow-sm hover:scale-105 active:scale-95 transition-all flex items-center justify-center group text-text-300 hover:text-text-100 cursor-pointer"
-                aria-label="Toggle Theme"
-            >
-                {isDark ? (
-                    <Sun className="w-5 h-5 group-hover:rotate-45 transition-transform" />
-                ) : (
-                    <Moon className="w-5 h-5 group-hover:-rotate-12 transition-transform" />
-                )}
-            </button>
+            {/* Dark Mode Toggle */}
+            <div className="fixed top-4 right-4 z-[60] pointer-events-auto">
+                <button
+                    onClick={() => setIsDark(!isDark)}
+                    className="p-2 ml-2 rounded-full bg-bg-100/80 backdrop-blur-md border border-bg-300 shadow-sm hover:scale-105 active:scale-95 transition-all text-text-300"
+                >
+                    {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+                </button>
+            </div>
 
-            {/* Logo / Header - Sticky Top */}
-            <div className={`fixed top-0 left-0 w-full p-4 z-[50] transition-all duration-500 ${hasStarted ? 'bg-bg-0/80 backdrop-blur border-b border-bg-200' : ''}`}>
+            {/* Logo / Header */}
+            <div className={`fixed top-0 left-0 w-full p-4 z-[50] transition-all duration-500 ${hasStarted ? 'bg-bg-0/80 backdrop-blur shadow-sm' : ''}`}>
                 <div className="max-w-7xl mx-auto flex items-center justify-between">
-                    <div className="flex items-center">
-                        <span className="font-semibold tracking-tight text-2xl text-text-100">
-                            porquien<span className="bg-gradient-to-r from-[#FF3B30] via-[#FF9500] via-[#28CD41] to-[#007AFF] bg-clip-text text-transparent">votar</span>.co
-                        </span>
-                    </div>
+                    <span className="font-semibold tracking-tight text-xl md:text-2xl text-text-100">
+                        porquien<span className="bg-gradient-to-r from-[#FF3B30] via-[#FF9500] via-[#28CD41] to-[#007AFF] bg-clip-text text-transparent">votar</span>.co
+                    </span>
                 </div>
             </div>
 
             {/* Main Content Area */}
-            <div className="relative z-10 w-full flex-1 flex flex-col overflow-hidden max-w-3xl mx-auto h-full">
-
-                {/* Hero / Welcome View */}
-                <AnimatePresence>
-                    {!hasStarted && (
+            <div className="relative z-10 w-full flex-1 flex flex-col overflow-hidden max-w-4xl mx-auto h-full">
+                <AnimatePresence mode="wait">
+                    {!hasStarted ? (
                         <motion.div
-                            initial={{ opacity: 0, y: 20 }}
+                            key="onboarding"
+                            initial={{ opacity: 0, y: 10 }}
                             animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -20, height: 0 }}
-                            className="flex flex-col items-start justify-center flex-1 w-full px-6 text-left"
+                            exit={{ opacity: 0, y: -10 }}
+                            className="flex flex-col items-center justify-start flex-1 w-full px-6 text-center pt-20 md:pt-28"
                         >
-                            <motion.div
-                                initial={{ scale: 0.9, opacity: 0 }}
-                                animate={{ scale: 1, opacity: 1 }}
-                                transition={{ delay: 0.1 }}
-                                className="mb-10 w-full"
-                            >
-                                <h2 className="text-xl md:text-2xl font-sans font-light text-text-300 mb-3">
-                                    Hola, elector
-                                </h2>
-                                <h1 className="text-3xl md:text-5xl font-serif font-medium text-text-100 tracking-tight leading-[1.15] text-balance">
-                                    Descubre tu candidato <span className="bg-gradient-to-r from-[#FF3B30] via-[#FF9500] via-[#28CD41] to-[#007AFF] bg-clip-text text-transparent">ideal</span>.
+                            <div className="mb-4 md:mb-8 w-full">
+                                <h1 className="text-3xl md:text-5xl font-serif font-medium text-text-100 tracking-tight leading-[1.1] mb-2">
+                                    Descubre tu candidato <span className="bg-gradient-to-r from-[#FF3B30] via-[#FF9500] via-[#28CD41] to-[#007AFF] bg-clip-text text-transparent italic">ideal</span>.
                                 </h1>
-                            </motion.div>
-
-                            <div className="w-full max-w-2xl transform transition-all duration-500 hover:scale-[1.01] hidden md:block mb-12">
-                                <ChatInput onSendMessage={handleSendMessage} />
+                                <p className="text-text-300 font-light text-base md:text-xl">
+                                    Si tuvieras la varita mágica <br className="md:hidden" /> ¿por dónde empezarías?
+                                </p>
                             </div>
 
-                            {/* Suggested Prompts */}
-                            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 w-full max-w-3xl px-1">
-                                {topics.map((t) => (
-                                    <button
-                                        key={t.name}
-                                        onClick={() => handleSendMessage({ message: t.name, files: [], pastedContent: [], model: 'default' })}
-                                        className={clsx(
-                                            "flex items-center justify-center px-4 py-2 text-[15px] font-medium rounded-xl transition-all duration-300",
-                                            "border border-bg-300/40 backdrop-blur-md shadow-sm",
-                                            "bg-bg-100/40 hover:bg-bg-100/80 hover:shadow-md hover:scale-[1.02] hover:border-transparent relative group overflow-hidden",
-                                            "active:scale-95 text-text-200"
-                                        )}
-                                    >
-                                        <div className="absolute inset-0 bg-gradient-to-r from-[#FF3B30] via-[#FF9500] via-[#28CD41] to-[#007AFF] opacity-0 group-hover:opacity-10 transition-opacity pointer-events-none" />
-                                        <span className="relative z-10 group-hover:bg-gradient-to-r group-hover:from-[#FF3B30] group-hover:via-[#FF9500] group-hover:via-[#28CD41] group-hover:to-[#007AFF] group-hover:bg-clip-text group-hover:text-transparent transition-all">
-                                            {t.name}
-                                        </span>
-                                    </button>
-                                ))}
+                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 md:gap-3 w-full max-w-4xl px-2">
+                                {topics.map((t) => {
+                                    const isSelected = selectedTopics.includes(t.name);
+                                    const Icon = t.icon;
+                                    return (
+                                        <button
+                                            key={t.name}
+                                            onClick={() => toggleTopic(t.name)}
+                                            className={clsx(
+                                                "flex flex-col items-center justify-center p-2 h-16 md:h-28 rounded-2xl transition-all duration-300 relative overflow-hidden group border",
+                                                isSelected
+                                                    ? "border-transparent shadow-md bg-bg-100"
+                                                    : "bg-bg-100/30 border-bg-300/40 hover:bg-bg-100/60 hover:scale-[1.02]"
+                                            )}
+                                        >
+                                            {/* Multicolor Gradient Border when Selected */}
+                                            {isSelected && (
+                                                <div className="absolute inset-0 p-[1.5px] rounded-2xl bg-gradient-to-r from-[#FF3B30] via-[#FF9500] via-[#28CD41] to-[#007AFF]">
+                                                    <div className="w-full h-full bg-bg-100 rounded-[14px]" />
+                                                </div>
+                                            )}
+                                            <div className={clsx(
+                                                "absolute inset-0 bg-gradient-to-r from-[#FF3B30] via-[#FF9500] via-[#28CD41] to-[#007AFF] transition-opacity",
+                                                isSelected ? "opacity-10" : "opacity-0 group-hover:opacity-5"
+                                            )} />
+                                            <Icon className={clsx(
+                                                "relative z-10 w-5 h-5 md:w-6 md:h-6 mb-1 transition-transform duration-300",
+                                                isSelected ? "text-[#007AFF] scale-110" : "text-text-400 group-hover:text-text-200"
+                                            )} />
+                                            <span className={clsx(
+                                                "relative z-10 text-[12px] md:text-sm transition-all leading-tight",
+                                                isSelected ? "font-bold text-[#007AFF]" : "font-medium text-text-300"
+                                            )}>
+                                                {t.name}
+                                            </span>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </motion.div>
+                    ) : (
+                        <motion.div
+                            key="chat"
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            className="flex-1 flex flex-col overflow-hidden w-full"
+                        >
+                            <div className="flex-1 overflow-y-auto px-4 pt-24 pb-48 no-scrollbar scroll-smooth">
+                                <div className="space-y-6">
+                                    {messages.map((msg, idx) => (
+                                        <div key={idx} className={clsx("flex w-full", msg.role === 'user' ? "justify-end" : "justify-start")}>
+                                            <div className={clsx(
+                                                "max-w-[85%] rounded-2xl px-5 py-3 text-[16px] shadow-sm",
+                                                msg.role === 'user' ? "bg-bg-100/80 backdrop-blur-sm text-text-100 border border-bg-300/30" : "font-light text-text-200"
+                                            )}>
+                                                {msg.role === 'assistant' && msg.content.length > 0 && (
+                                                    <div className="w-6 h-6 rounded-lg bg-black flex items-center justify-center mb-2 shadow-lg">
+                                                        <span className="text-[10px] font-bold text-white">PV</span>
+                                                    </div>
+                                                )}
+                                                {msg.content}
+                                            </div>
+                                        </div>
+                                    ))}
+                                    {isLoading && !messages[messages.length - 1]?.content && (
+                                        <div className="flex items-center gap-2 text-text-300 ml-2">
+                                            <div className="w-6 h-6 rounded-lg bg-black flex items-center justify-center animate-pulse shadow-md">
+                                                <span className="text-[10px] font-bold text-white">PV</span>
+                                            </div>
+                                            <span className="text-sm font-medium">Escribiendo...</span>
+                                        </div>
+                                    )}
+                                    <div ref={messagesEndRef} />
+                                </div>
                             </div>
                         </motion.div>
                     )}
                 </AnimatePresence>
-
-                {/* Chat History View - Desktop & Mobile optimized */}
-                {hasStarted && (
-                    <div className="flex-1 overflow-y-auto px-4 pt-24 pb-48 w-full no-scrollbar" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-                        <style jsx>{`
-                            ::-webkit-scrollbar {
-                                display: none;
-                            }
-                        `}</style>
-                        <div className="space-y-6">
-                            {messages.map((msg, idx) => (
-                                <motion.div
-                                    key={idx}
-                                    initial={{ opacity: 0, y: 10 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    className={clsx(
-                                        "flex w-full",
-                                        msg.role === 'user' ? "justify-end" : "justify-start"
-                                    )}
-                                >
-                                    <div
-                                        className={clsx(
-                                            "max-w-[90%] md:max-w-[85%] rounded-2xl px-5 py-3 text-[16px] leading-[1.6]",
-                                            msg.role === 'user'
-                                                ? "bg-bg-100 text-text-100 dark:bg-bg-200 rounded-br-sm shadow-none border-none"
-                                                : "bg-transparent text-text-100 font-light pl-0 shadow-none border-none py-0"
-                                        )}
-                                    >
-                                        {msg.role === 'assistant' && (
-                                            <div className="flex items-center gap-2 mb-2 opacity-100">
-                                                <div className="w-6 h-6 rounded-lg bg-bg-0 border border-bg-300 flex items-center justify-center relative overflow-hidden shrink-0">
-                                                    <span className="font-serif font-bold text-[10px] text-black z-10">PV</span>
-                                                </div>
-                                            </div>
-                                        )}
-                                        {msg.content}
-                                    </div>
-                                </motion.div>
-                            ))}
-                            {isLoading && (
-                                <div className="flex justify-start w-full pl-0 pt-2">
-                                    <div className="flex items-center gap-2 text-text-300">
-                                        <div className="w-6 h-6 rounded-lg bg-bg-0 border border-bg-300 flex items-center justify-center animate-pulse shrink-0">
-                                            <span className="font-serif font-bold text-[10px] text-black">PV</span>
-                                        </div>
-                                        <span className="text-sm">Escribiendo...</span>
-                                    </div>
-                                </div>
-                            )}
-                            <div ref={messagesEndRef} />
-                        </div>
-                    </div>
-                )}
             </div>
 
-            {/* Bottom Input - Fixed positioned. Visible on mobile always. Visible on desktop ONLY if chat started. */}
-            <div className={clsx(
-                "fixed bottom-0 left-0 w-full z-40 px-4 pb-4 pt-4 bg-gradient-to-t from-bg-0 via-bg-0/90 to-transparent",
-                !hasStarted && "md:hidden block"
-            )}>
-                <div className="max-w-3xl mx-auto">
-                    <ChatInput onSendMessage={handleSendMessage} />
+            {/* Bottom Panel */}
+            <div className="fixed bottom-0 left-0 w-full z-40 px-4 pb-6 pt-6 bg-gradient-to-t from-bg-0 via-bg-0/95 to-transparent">
+                <div className="max-w-3xl mx-auto flex justify-center">
+                    {hasStarted ? (
+                        <ChatInput onSendMessage={handleSendMessage} />
+                    ) : (
+                        <motion.button
+                            layout
+                            initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                            animate={{
+                                opacity: 1,
+                                scale: 1,
+                                y: 0,
+                                width: selectedTopics.length === 3 ? 'auto' : '88px',
+                            }}
+                            whileHover={selectedTopics.length === 3 ? { scale: 1.02, y: -2 } : {}}
+                            whileTap={selectedTopics.length === 3 ? { scale: 0.98 } : {}}
+                            onClick={handleStartChat}
+                            disabled={selectedTopics.length !== 3}
+                            className={clsx(
+                                "relative h-14 md:h-16 rounded-full flex items-center justify-center transition-all duration-700 shadow-2xl overflow-hidden backdrop-blur-xl",
+                                selectedTopics.length === 3
+                                    ? "bg-black text-white px-10 shadow-[#007AFF]/30"
+                                    : "bg-white/40 dark:bg-black/40 text-text-300 border border-bg-300/30 shadow-none px-6"
+                            )}
+                        >
+                            {/* Master Glow Background */}
+                            <AnimatePresence mode="wait">
+                                {selectedTopics.length === 3 && (
+                                    <motion.div
+                                        initial={{ opacity: 0 }}
+                                        animate={{ opacity: 1 }}
+                                        exit={{ opacity: 0 }}
+                                        className="absolute inset-0 bg-gradient-to-r from-[#FF3B30] via-[#FF9500] via-[#28CD41] to-[#007AFF] opacity-20"
+                                    />
+                                )}
+                            </AnimatePresence>
+
+                            {/* Progress Visualizers (3 Senior Dots) */}
+                            <div className="flex gap-2.5 relative z-10 transition-all duration-500">
+                                {[1, 2, 3].map((dot) => (
+                                    <div
+                                        key={dot}
+                                        className={clsx(
+                                            "w-2 h-2 md:w-2.5 md:h-2.5 rounded-full transition-all duration-500 border",
+                                            selectedTopics.length === 3
+                                                ? "bg-white border-transparent shadow-[0_0_8px_rgba(255,255,255,0.8)]"
+                                                : selectedTopics.length >= dot
+                                                    ? "bg-gradient-to-br from-[#FF3B30] to-[#007AFF] border-transparent shadow-[0_0_8px_rgba(0,122,255,0.6)]"
+                                                    : "bg-transparent border-text-300/20"
+                                        )}
+                                    />
+                                ))}
+                            </div>
+
+                            {/* Icon Animation - Only visible in Ready Mode */}
+                            <AnimatePresence>
+                                {selectedTopics.length === 3 && (
+                                    <motion.div
+                                        initial={{ opacity: 0, x: -10 }}
+                                        animate={{ opacity: 1, x: 0 }}
+                                        exit={{ opacity: 0, x: -10 }}
+                                        className="relative z-10 flex items-center justify-center ml-4"
+                                    >
+                                        <ArrowRight className="w-6 h-6 transition-all duration-700 translate-x-1 scale-110" />
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+
+                            {/* Refined Pulsing Glow for 'Success' State */}
+                            {selectedTopics.length === 3 && (
+                                <motion.div
+                                    animate={{ opacity: [0.1, 0.4, 0.1] }}
+                                    transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                                    className="absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r from-[#FF3B30] via-[#FF9500] via-[#28CD41] to-[#007AFF]"
+                                />
+                            )}
+                        </motion.button>
+                    )}
                 </div>
             </div>
         </div>

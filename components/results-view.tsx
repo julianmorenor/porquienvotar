@@ -1,15 +1,56 @@
 import { Candidate } from '@/lib/types';
 import { useState } from 'react';
-import { Share2, ArrowRight } from 'lucide-react';
+import { Share2, ArrowRight, Loader2 } from 'lucide-react';
+import clsx from 'clsx';
 import InfiniteGrid from '@/components/ui/infinite-grid-integration';
 import { motion } from 'framer-motion';
 
 interface ResultsViewProps {
     candidates: Candidate[];
+    selectedTopics: string[];
 }
 
-export default function ResultsView({ candidates }: ResultsViewProps) {
+export default function ResultsView({ candidates, selectedTopics }: ResultsViewProps) {
     const [leadGenChecked, setLeadGenChecked] = useState(false);
+    const [isSharing, setIsSharing] = useState(false);
+
+    const handleShare = async () => {
+        if (!candidates.length) return;
+
+        setIsSharing(true);
+        const topCandidate = [...candidates].sort((a, b) => b.affinity - a.affinity)[0];
+
+        // Construct OG Image URL
+        const ogUrl = new URL('/api/og', window.location.origin);
+        ogUrl.searchParams.set('name', topCandidate.name);
+        ogUrl.searchParams.set('affinity', topCandidate.affinity.toString());
+        ogUrl.searchParams.set('party', topCandidate.party || '');
+        ogUrl.searchParams.set('topics', selectedTopics.join(','));
+
+        try {
+            // Check if Web Share API is available for files
+            const response = await fetch(ogUrl.toString());
+            const blob = await response.blob();
+            const file = new File([blob], 'tarjeton-electoral.png', { type: 'image/png' });
+
+            if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+                await navigator.share({
+                    files: [file],
+                    title: 'Mi Perfil Electoral - porquienvotar.co',
+                    text: `He descubierto que mi candidato ideal es ${topCandidate.name}. ¡Descubre el tuyo en https://porquienvotar.co!`,
+                });
+            } else {
+                // Fallback: Copy Link
+                await navigator.clipboard.writeText(window.location.href);
+                alert('¡Enlace copiado! Comparte tu resultado con tus amigos.');
+            }
+        } catch (error) {
+            console.error('Error sharing:', error);
+            alert('No pudimos generar la imagen para compartir. Intenta capturando pantalla.');
+        } finally {
+            setIsSharing(false);
+        }
+    };
 
     return (
         <div className="relative w-full h-[100dvh] bg-bg-0 text-text-100 font-sans transition-colors duration-300 overflow-hidden flex flex-col">
@@ -19,7 +60,7 @@ export default function ResultsView({ candidates }: ResultsViewProps) {
             </div>
 
             {/* Header */}
-            <div className="fixed top-0 left-0 w-full p-4 z-[50] bg-bg-0/80 backdrop-blur border-b border-bg-200">
+            <div className="fixed top-0 left-0 w-full p-4 z-[50] bg-bg-0/80 backdrop-blur">
                 <div className="max-w-7xl mx-auto flex items-center justify-between">
                     <div className="flex items-center">
                         <span className="font-semibold tracking-tight text-2xl text-text-100">
@@ -125,15 +166,32 @@ export default function ResultsView({ candidates }: ResultsViewProps) {
                         </label>
                     </motion.div>
 
-                    {/* Share Button */}
-                    <div className="flex justify-center pb-8">
+                    {/* Viral Share Button */}
+                    <div className="flex flex-col items-center gap-4 pb-12">
                         <button
-                            className="bg-bg-100 hover:bg-white text-text-200 px-8 py-4 rounded-full flex items-center gap-3 transition-all font-semibold shadow-sm hover:shadow-md active:scale-95 border border-bg-300"
-                            onClick={() => alert('¡Captura esta pantalla y compártela!')}
+                            onClick={handleShare}
+                            disabled={isSharing}
+                            className={clsx(
+                                "group relative w-full py-5 rounded-2xl font-bold text-xl transition-all duration-300 shadow-xl overflow-hidden",
+                                "bg-gradient-to-r from-[#FF3B30] via-[#FF9500] via-[#28CD41] to-[#007AFF] text-white",
+                                "hover:scale-[1.02] active:scale-95 disabled:grayscale disabled:opacity-50"
+                            )}
                         >
-                            <Share2 size={18} />
-                            Compartir mi Perfil Político
+                            <div className="relative z-10 flex items-center justify-center gap-3">
+                                {isSharing ? (
+                                    <>
+                                        <Loader2 className="animate-spin" />
+                                        <span>Generando tu tarjetón...</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <Share2 />
+                                        <span>Compartir mi Tarjetón</span>
+                                    </>
+                                )}
+                            </div>
                         </button>
+                        <p className="text-text-400 text-sm">Crea una historia para WhatsApp o Instagram ✨</p>
                     </div>
                 </div>
             </div>
