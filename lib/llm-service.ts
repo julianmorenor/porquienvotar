@@ -1,26 +1,11 @@
-import OpenAI from 'openai';
+import { openai } from '@ai-sdk/openai';
+import { google } from '@ai-sdk/google';
+import { streamObject } from 'ai';
+import { z } from 'zod';
 import { LLMResponse } from './types';
 
 // --- CONFIGURACIÓN DE PROVEEDOR ---
-// const PROVIDER: 'openai' | 'google' = 'google'; 
-const PROVIDER: 'openai' | 'google' = 'openai';
-
-const openai = new OpenAI(PROVIDER === 'openai' ? {
-    apiKey: process.env.OPENAI_API_KEY,
-} : {
-    apiKey: process.env.GOOGLE_API_KEY,
-    baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai/',
-});
-
-console.log(`[LLM Service] Initialized with PROVIDER: ${PROVIDER}`);
-
-/* 
-// Configuración anterior (Auto-switch)
-const openai = new OpenAI({
-    apiKey: process.env.GOOGLE_API_KEY || process.env.OPENAI_API_KEY || 'mock-key',
-    baseURL: process.env.GOOGLE_API_KEY ? 'https://generativelanguage.googleapis.com/v1beta/openai/' : undefined,
-});
-*/
+const PROVIDER: 'openai' | 'google' = (process.env.LLM_PROVIDER as any) || 'openai';
 
 const SYSTEM_PROMPT = `
 Eres "porquienvotar.co", un asistente de orientación política neutral para Colombia (Contexto Elecciones 2026).
@@ -49,30 +34,6 @@ VECTORES DE ANÁLISIS (Escala 0-100):
 - Alineación: 0 (Soberanía Latam) <-> 100 (Occidente/USA).
 ---
 
-IMPORTANTE: Eres parte de una API JSON. TU SALIDA DEBE SER SIEMPRE Y ÚNICAMENTE UN OBJETO JSON VÁLIDO.
-No incluyas markdown, bloques de código ni texto adicional fuera del JSON.
-
-FORMATO DE RESPUESTA:
-{
-  "client_response": {
-    "message": "Texto que ve el usuario. Usar tono amigable, claro y directo. Máximo 50 palabras por turno, salvo la conclusión.",
-    "is_final_answer": boolean, // true solo cuando ya has dado la recomendación de candidatos
-    "suggested_candidates": [ // Solo incluir si is_final_answer es true. Máximo 2.
-       { "id": "ivan_cepeda", "name": "Iván Cepeda", "affinity": 0-100, "summary": "Coinciden en...", "imageUrl": "/images/cepeda.jpg", "party": "Pacto Histórico" },
-       { "id": "abelardo_espriella", "name": "Abelardo De La Espriella", "affinity": 0-100, "summary": "Coinciden en...", "imageUrl": "/images/abelardo.jpg", "party": "Independiente" }
-    ]
-  },
-  "hidden_analysis": {
-    "user_location_inferred": "Ciudad/Region o 'Unknown'",
-    "winning_candidate": "Nombre del candidato con mayor afinidad (o 'Indeciso')",
-    "user_intents": [
-       // Extrae preocupaciones o temas mencionados en ESTE turno o acumulados.
-       // Ejemplo: { "topic": "Seguridad", "sentiment": "Miedo", "urgency": "Alta" }
-    ],
-    "conversation_summary": "Resumen técnico brevísimo del estado actual"
-  }
-}
-
 REGLAS DE INTERACCIÓN:
 1. Al principio, si el usuario envía una keyword (ej: "Seguridad"), asume ese tema y haz una pregunta dicotómica (A vs B) inmediata sobre ese vector.
 2. Si saluda normal, pregunta qué le preocupa más (Bolsillo, Seguridad, Salud, Corrupción).
@@ -82,68 +43,60 @@ REGLAS DE INTERACCIÓN:
    - Si quiere "Paz Total" y "Subsidios" -> Cepeda.
 5. Al final, sugiere el candidato con mayor % de afinidad.
 6. Si el usuario es agresivo, mantén la neutralidad.
-
-Recuerda: SALIDA JSON PURO.
 `;
 
-export async function chatWithLLM(history: any[]): Promise<LLMResponse> {
-    if (!process.env.OPENAI_API_KEY && !process.env.GOOGLE_API_KEY) {
-        // Mock response for dev without keys
-        return {
-            client_response: {
-                message: "Modo de desarrollo: No se detectó API KEY. Por favor configura OPENAI_API_KEY o GOOGLE_API_KEY.",
-                is_final_answer: false
-            },
-            hidden_analysis: {
-                user_intents: [],
-                user_location_inferred: "Unknown",
-                winning_candidate: "None"
-            }
-        };
+// Schema for structured output
+const ResponseSchema = z.object({
+    client_response: z.object({
+        message: z.string().describe("Texto que ve el usuario. Máximo 50 palabras por turno, salvo la conclusión."),
+        is_final_answer: z.boolean(),
+        suggested_candidates: z.array(z.object({
+            id: z.string(),
+            name: z.string(),
+            affinity: z.number().min(0).max(100),
+            summary: z.string(),
+            imageUrl: z.string(),
+            party: z.string()
+        }))
+    }),
+    hidden_analysis: z.object({
+        user_location_inferred: z.string(),
+        winning_candidate: z.string(),
+        user_intents: z.array(z.object({
+            topic: z.string(),
+            sentiment: z.enum(["Positivo", "Negativo", "Neutro", "Preocupado", "Enojo", "Esperanza"]),
+            urgency: z.enum(["Baja", "Media", "Alta"])
+        })),
+        conversation_summary: z.string()
+    })
+});
+
+
+
+export async function chatWithLLMStream(history: any[]) {
+    const hasOpenAI = !!process.env.OPENAI_API_KEY;
+    const hasGoogle = !!process.env.GOOGLE_API_KEY;
+
+    if (!hasOpenAI && !hasGoogle) {
+        throw new Error("No se detectaron llaves de API (OPENAI_API_KEY o GOOGLE_API_KEY).");
     }
 
-    try {
-        const currentModel = PROVIDER === 'openai' ? "gpt-5-nano-2025-08-07" : "gemini-2.5-flash";
-        console.log(`[LLM Service] Calling ${PROVIDER} with model: ${currentModel}`);
+    // Determine target provider
+    const targetProvider = (PROVIDER === 'openai' && hasOpenAI) ? 'openai' : (hasGoogle ? 'google' : 'openai');
+    const modelId = targetProvider === 'openai' ? 'gpt-5-nano' : 'gemini-1.5-flash';
 
-        const completion = await openai.chat.completions.create({
-            model: currentModel,
-            messages: [
-                { role: "system", content: SYSTEM_PROMPT },
-                ...history
-            ],
-            // Note: gpt-5-nano-2025-08-07 has strict parameter requirements
-        });
+    console.log(`[LLM Service] Routing to ${targetProvider} with model ${modelId}`);
 
-        const content = completion.choices[0].message.content;
-        if (!content) throw new Error("Empty response from LLM");
+    const model = targetProvider === 'openai'
+        ? openai(modelId)
+        : google(modelId);
 
-        // Robust parsing: strip markdown blocks if they exist
-        let cleanedContent = content.trim();
-        if (cleanedContent.startsWith("```")) {
-            cleanedContent = cleanedContent.replace(/^```[a-z]*\n/i, "").replace(/\n```$/m, "").trim();
-        }
-
-        try {
-            const parsed = JSON.parse(cleanedContent) as LLMResponse;
-            return parsed;
-        } catch (parseError) {
-            throw new Error("Invalid JSON response from AI");
-        }
-
-    } catch (error) {
-        console.error("LLM Service Error:", error instanceof Error ? error.message : "Undefined error");
-        // Fallback error structure
-        return {
-            client_response: {
-                message: "Estamos trabajando por Colombia, intenta más tarde.",
-                is_final_answer: false
-            },
-            hidden_analysis: {
-                user_intents: [],
-                user_location_inferred: "Unknown",
-                winning_candidate: "Error"
-            }
-        };
-    }
+    return streamObject({
+        model,
+        system: SYSTEM_PROMPT,
+        messages: history,
+        schema: ResponseSchema,
+    });
 }
+
+// (End of file)

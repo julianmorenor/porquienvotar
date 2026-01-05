@@ -20,7 +20,38 @@ export default function ChatInterface() {
         { role: 'assistant', content: '¿Tu futuro está en juego? Descubre tu candidato ideal antes de que sea tarde. ¿Qué tema define tu voto hoy?' }
     ]);
     const [isLoading, setIsLoading] = useState(false);
-    const [candidates, setCandidates] = useState<Candidate[] | null>(null);
+    // --- UI DEBUG ONLY (Commented for testing) ---
+    /*
+    const MOCK_CANDIDATES: Candidate[] = [
+        {
+            id: "1",
+            name: "Candidato de Prueba A",
+            affinity: 85,
+            party: "Partido del Futuro",
+            summary: "Propone una reforma integral a la salud y fortalecer la educación técnica en regiones apartadas.",
+            imageUrl: "https://api.dicebear.com/7.x/avataaars/svg?seed=A"
+        },
+        {
+            id: "2",
+            name: "Candidata de Prueba B",
+            affinity: 72,
+            party: "Unión por el Cambio",
+            summary: "Su enfoque principal es la seguridad urbana y la reducción de impuestos para pequeñas empresas.",
+            imageUrl: "https://api.dicebear.com/7.x/avataaars/svg?seed=B"
+        },
+        {
+            id: "3",
+            name: "Candidato de Prueba C",
+            affinity: 45,
+            party: "Movimiento Verde",
+            summary: "Enfocado en la transición energética y la protección de páramos y recursos hídricos.",
+            imageUrl: "https://api.dicebear.com/7.x/avataaars/svg?seed=C"
+        }
+    ];
+    */
+    // ----------------------------------------------
+
+    const [candidates, setCandidates] = useState<Candidate[] | null>(null); // Reverted to null for real testing
     const [isDark, setIsDark] = useState(false); // Default to light
 
     // Refs
@@ -55,15 +86,21 @@ export default function ChatInterface() {
         isThinkingEnabled?: boolean;
     }) => {
         const inputContent = data.message;
-
         if (!inputContent.trim()) return;
 
         const userMsg: Message = { role: 'user', content: inputContent };
-        setMessages(prev => [...prev, userMsg]);
+        const assistantMsg: Message = { role: 'assistant', content: '' };
+
+        // Capture current history BEFORE updating state to avoid stale closure issues
+        const currentHistory = [...messages];
+
+        setMessages(prev => [...prev, userMsg, assistantMsg]);
         setIsLoading(true);
 
         try {
-            const history = [...messages, userMsg]; // Send full history
+            const history = [...currentHistory, userMsg];
+            console.log("[Chat] Sending history:", history);
+
             const res = await fetch('/api/chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -71,27 +108,88 @@ export default function ChatInterface() {
             });
 
             if (!res.ok) {
-                if (res.status === 429) {
-                    throw new Error("Has alcanzado el límite diario de consultas.");
-                }
-                throw new Error('Error de conexión');
+                const errorData = await res.json().catch(() => ({}));
+                throw new Error(errorData.error || `Error ${res.status}: de conexión`);
             }
 
-            const resData = await res.json();
+            const reader = res.body?.getReader();
+            const decoder = new TextDecoder();
+            let accumulatedContent = '';
 
-            const assistantMsg: Message = { role: 'assistant', content: resData.message };
-            setMessages(prev => [...prev, assistantMsg]);
+            if (reader) {
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
 
-            if (resData.is_final_answer && resData.suggested_candidates) {
-                setCandidates(resData.suggested_candidates);
+                    const chunk = decoder.decode(value, { stream: true });
+                    accumulatedContent += chunk;
+
+                    // Debug: monitor what's coming in
+                    // console.log("[Chat] Stream chunk:", chunk);
+
+                    // Manual extraction of 'message' content
+                    // We look for the "message" value. Partial JSON regex needs to be careful.
+                    try {
+                        // This regex looks for the content of the "message" field specifically.
+                        // It handles escaped quotes inside the message.
+                        const messageMatch = accumulatedContent.match(/"message"\s*:\s*"((?:[^"\\]|\\.)*)"?/);
+                        if (messageMatch && messageMatch[1]) {
+                            const cleanText = messageMatch[1]
+                                .replace(/\\n/g, '\n')
+                                .replace(/\\"/g, '"')
+                                .replace(/\\/g, ''); // Basic cleaning of remaining escapes
+
+                            setMessages(prev => {
+                                const newMessages = [...prev];
+                                const last = newMessages[newMessages.length - 1];
+                                if (last && last.role === 'assistant') {
+                                    last.content = cleanText;
+                                }
+                                return newMessages;
+                            });
+                        }
+                    } catch (e) {
+                        // Partial parsing errors are expected
+                    }
+                }
+            }
+
+            // Final parse for candidates and flags
+            try {
+                // The AI SDK sends the JSON result at the end of the stream as well
+                // or the accumulated chunks form a complete JSON object.
+                const finalJson = JSON.parse(accumulatedContent);
+                console.log("[Chat] Final JSON received:", finalJson);
+
+                if (finalJson.client_response) {
+                    const { message, suggested_candidates, is_final_answer } = finalJson.client_response;
+
+                    if (message) {
+                        setMessages(prev => {
+                            const newMessages = [...prev];
+                            const last = newMessages[newMessages.length - 1];
+                            if (last && last.role === 'assistant') last.content = message;
+                            return newMessages;
+                        });
+                    }
+
+                    if (is_final_answer && suggested_candidates) {
+                        setCandidates(suggested_candidates);
+                    }
+                }
+            } catch (e) {
+                console.warn("[Chat] Could not parse final JSON:", accumulatedContent);
             }
 
         } catch (error: any) {
-            setMessages(prev => [...prev, { role: 'system', content: error.message || 'Ocurrió un error inesperado.' }]);
+            console.error("[Chat] Error:", error);
+            setMessages(prev => [...prev, { role: 'system', content: error.message || 'Ocurrió un error inesperado al conectar con el servidor.' }]);
         } finally {
             setIsLoading(false);
         }
     };
+
+
 
     // Determine View State
     const hasStarted = messages.length > 1;

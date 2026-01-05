@@ -64,23 +64,12 @@ const InfiniteGrid = () => {
         mouseY.set(e.clientY - top);
     };
 
-    // Grid offsets for infinite scroll animation
+    // Grid offsets - now static for performance
     const gridOffsetX = useMotionValue(0);
     const gridOffsetY = useMotionValue(0);
 
-    const speedX = 0.5;
-    const speedY = 0.5;
-
-    useAnimationFrame(() => {
-        const currentX = gridOffsetX.get();
-        const currentY = gridOffsetY.get();
-        // Reset offset at pattern width to simulate infinity
-        gridOffsetX.set((currentX + speedX) % gridSize);
-        gridOffsetY.set((currentY + speedY) % gridSize);
-    });
-
     // Create a dynamic radial mask for the "flashlight" effect
-    const maskImage = useMotionTemplate`radial-gradient(300px circle at ${mouseX}px ${mouseY}px, black, transparent)`;
+    const maskImage = useMotionTemplate`radial-gradient(250px circle at ${mouseX}px ${mouseY}px, black, transparent)`;
 
     return (
         <div
@@ -90,24 +79,25 @@ const InfiniteGrid = () => {
                 "relative w-full h-full flex flex-col items-center justify-center overflow-hidden bg-bg-0"
             )}
         >
-            {/* Layer 1: Subtle background grid (always visible) */}
-            <div className="absolute inset-0 z-0 opacity-[0.05]">
-                <GridPattern offsetX={gridOffsetX} offsetY={gridOffsetY} size={gridSize} />
+            {/* Layer 1: Subtle background grid (Static) */}
+            <div className="absolute inset-0 z-0 opacity-[0.03]">
+                <GridPattern offsetX={0} offsetY={0} size={gridSize} />
             </div>
 
             {/* Layer 2: Highlighted grid (revealed by mouse mask) */}
             <motion.div
-                className="absolute inset-0 z-0 opacity-40"
+                className="absolute inset-0 z-0 opacity-20"
                 style={{ maskImage, WebkitMaskImage: maskImage }}
             >
-                <GridPattern offsetX={gridOffsetX} offsetY={gridOffsetY} size={gridSize} />
+                <GridPattern offsetX={0} offsetY={0} size={gridSize} />
             </motion.div>
 
-            {/* Decorative Blur Spheres */}
+            {/* Decorative Blur Spheres (Restored as requested) */}
             <div className="absolute inset-0 pointer-events-none z-0">
                 <div className="absolute right-[-20%] top-[-20%] w-[40%] h-[40%] rounded-full bg-accent/20 blur-[120px]" />
                 <div className="absolute left-[-10%] bottom-[-20%] w-[40%] h-[40%] rounded-full bg-blue-500/20 blur-[120px]" />
             </div>
+
 
             {/* Content */}
             <div className="relative z-10 w-full h-full pointer-events-none">

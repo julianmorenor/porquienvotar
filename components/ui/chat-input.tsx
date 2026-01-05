@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import { ArrowUp, Sparkles } from "lucide-react";
 
 /* --- UTILS --- */
@@ -20,7 +20,7 @@ interface ChatInputProps {
     }) => void;
 }
 
-export const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage }) => {
+const ChatInput: React.FC<ChatInputProps> = React.memo(({ onSendMessage }) => {
     const [message, setMessage] = useState("");
     const [isThinkingEnabled, setIsThinkingEnabled] = useState(false);
 
@@ -28,16 +28,23 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage }) => {
 
     // Auto-resize textarea
     useEffect(() => {
-        if (textareaRef.current) {
-            textareaRef.current.style.height = "auto";
-            textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 384) + "px";
+        const textarea = textareaRef.current;
+        if (textarea) {
+            // Only update height if scrollHeight has changed
+            const newHeight = Math.min(textarea.scrollHeight, 160); // Use 160 from max-h
+            if (textarea.offsetHeight !== newHeight) {
+                textarea.style.height = "auto";
+                textarea.style.height = `${textarea.scrollHeight}px`;
+            }
         }
     }, [message]);
 
-    const handleSend = () => {
-        if (!message.trim()) return;
+    const handleSend = useCallback(() => {
+        const trimmedMessage = message.trim();
+        if (!trimmedMessage) return;
+
         onSendMessage({
-            message,
+            message: trimmedMessage,
             files: [],
             pastedContent: [],
             model: "default",
@@ -45,7 +52,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage }) => {
         });
         setMessage("");
         if (textareaRef.current) textareaRef.current.style.height = 'auto'; // Reset height
-    };
+    }, [message, onSendMessage, isThinkingEnabled]);
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
         if (e.key === 'Enter' && !e.shiftKey) {
@@ -57,14 +64,14 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage }) => {
     const hasContent = message.trim().length > 0;
 
     return (
-        <div className={`relative w-full max-w-2xl mx-auto transition-all duration-300 font-sans`}>
+        <div className="relative w-full max-w-2xl mx-auto transition-all duration-300 font-sans">
             {/* Main Container */}
-            <div className={`
+            <div className="
                 !box-content flex flex-col mx-0 md:mx-0 items-stretch transition-all duration-200 relative z-10 rounded-xl cursor-text border border-bg-300 dark:border-transparent 
                 shadow-[0_2px_10px_rgba(0,0,0,0.05)] hover:shadow-[0_4px_15px_rgba(0,0,0,0.08)]
                 focus-within:shadow-[0_4px_20px_rgba(0,0,0,0.1)] focus-within:border-accent/40
                 bg-white dark:bg-[#30302E] font-sans antialiased scale-100
-            `}>
+            ">
 
                 <div className="flex flex-col px-3 md:px-4 py-0.5 md:py-2 gap-2">
                     {/* Input Area */}
@@ -108,6 +115,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage }) => {
             </div>
         </div >
     );
-};
+});
 
 export default ChatInput;
+
