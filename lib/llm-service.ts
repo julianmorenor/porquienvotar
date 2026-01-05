@@ -1,11 +1,11 @@
 import { openai } from '@ai-sdk/openai';
-import { google } from '@ai-sdk/google';
+import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { streamObject } from 'ai';
 import { z } from 'zod';
 import { LLMResponse } from './types';
 
 // --- CONFIGURACIÓN DE PROVEEDOR ---
-const PROVIDER: 'openai' | 'google' = (process.env.LLM_PROVIDER as any) || 'openai';
+const PROVIDER: 'openai' | 'google' = (process.env.LLM_PROVIDER as any) || 'google';
 
 const SYSTEM_PROMPT = `
 Eres "porquienvotar.co", un asistente de orientación política neutral para Colombia (Contexto Elecciones 2026).
@@ -81,9 +81,13 @@ export async function chatWithLLMStream(history: any[]) {
         throw new Error("No se detectaron llaves de API (OPENAI_API_KEY o GOOGLE_API_KEY).");
     }
 
+    const google = createGoogleGenerativeAI({
+        apiKey: process.env.GOOGLE_API_KEY
+    });
+
     // Determine target provider
-    const targetProvider = (PROVIDER === 'openai' && hasOpenAI) ? 'openai' : (hasGoogle ? 'google' : 'openai');
-    const modelId = targetProvider === 'openai' ? 'gpt-5-nano' : 'gemini-1.5-flash';
+    const targetProvider = (PROVIDER === 'google' && hasGoogle) ? 'google' : (hasOpenAI ? 'openai' : 'google');
+    const modelId = targetProvider === 'openai' ? 'gpt-5-nano' : 'gemini-2.5-flash-lite-preview-09-2025';
 
     console.log(`[LLM Service] Routing to ${targetProvider} with model ${modelId}`);
 
